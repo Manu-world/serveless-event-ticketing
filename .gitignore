@@ -147,8 +147,10 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments / secrets
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -216,3 +218,60 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# Project-specific: AWS / Terraform / Lambda / local secrets
+# ---------------------------------------------------------------------------
+
+# Terraform local state & plugin cache (state can contain secrets)
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+
+# Variable files often hold secrets; keep example files committable
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform plan output
+*.tfplan
+tfplan
+*.plan
+
+# Lambda build artifacts (also covered by dist/ above)
+*.zip
+
+# AWS credentials / config accidentally copied into the repo
+.aws/
+**/credentials.json
+**/service-account*.json
+**/aws-exports.js
+
+# Private keys & certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# OS / editor junk that can leak paths or local settings
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~
