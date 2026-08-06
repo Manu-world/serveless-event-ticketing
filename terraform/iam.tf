@@ -24,6 +24,30 @@ resource "aws_iam_role" "github_actions_role" {
   })
 }
 
+# Allow GitHub Actions to publish updated Lambda code after tests pass
+resource "aws_iam_role_policy" "github_actions_lambda_deploy" {
+  name = "${var.project_name}-github-lambda-deploy"
+  role = aws_iam_role.github_actions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:GetFunction",
+          "lambda:GetFunctionConfiguration",
+          "lambda:PublishVersion"
+        ]
+        Resource = [
+          for fn in aws_lambda_function.api_handlers : fn.arn
+        ]
+      }
+    ]
+  })
+}
+
 # 3. Base IAM Role for Lambda Functions
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${var.project_name}-lambda-role"

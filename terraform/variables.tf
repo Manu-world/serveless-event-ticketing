@@ -10,7 +10,7 @@ variable "project_name" {
 
 variable "github_repo" {
   description = "Your GitHub repository (Format: username/repo-name)"
-  default     = "Manu-world/event-ticketing-aws-infra"
+  default     = "Manu-world/serveless-event-ticketing"
 }
 
 locals {

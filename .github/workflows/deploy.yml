@@ -7,16 +7,22 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'pytest.ini'
       - '.github/workflows/**'
 
-# Required permissions for OIDC authentication
 permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: event-ticketing
+  PYTHONPATH: .
+
 jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,6 +31,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: pip
 
       - name: Install Dependencies
         run: |
@@ -32,21 +39,22 @@ jobs:
           pip install pytest boto3
 
       - name: Run Unit Tests
-        run: pytest tests/
+        run: pytest tests/ -q
 
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::272558305025:role/azubi-event-ticketing-github-oidc-role
-          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::272558305025:role/${{ env.PROJECT_NAME }}-github-oidc-role
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Package and Deploy Lambda Updates
         run: |
+          set -euo pipefail
           mkdir -p dist
           for function in register get_events get_registrations delete_registration; do
-            zip -j dist/${function}.zip src/${function}.py
+            zip -j "dist/${function}.zip" "src/${function}.py"
             aws lambda update-function-code \
-              --function-name azubi-event-ticketing-${function} \
-              --zip-file fileb://dist/${function}.zip \
+              --function-name "${PROJECT_NAME}-${function}" \
+              --zip-file "fileb://dist/${function}.zip" \
               --publish
           done
