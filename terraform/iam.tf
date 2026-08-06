@@ -97,3 +97,25 @@ resource "aws_iam_role_policy_attachment" "lambda_dynamodb_attach" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
 }
+
+
+resource "aws_iam_policy" "lambda_sns_policy" {
+  name        = "${var.project_name}-sns-publish"
+  description = "Allows Lambda to publish to the confirmation SNS topic"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "sns:Publish"
+        Effect   = "Allow"
+        Resource = aws_sns_topic.event_confirmations.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sns_attach" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = aws_iam_policy.lambda_sns_policy.arn
+}

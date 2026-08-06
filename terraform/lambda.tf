@@ -28,7 +28,8 @@ resource "aws_lambda_function" "api_handlers" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.event_ticketing_db.name
+      TABLE_NAME    = aws_dynamodb_table.event_ticketing_db.name
+      SNS_TOPIC_ARN = aws_sns_topic.event_confirmations.arn
     }
   }
   
