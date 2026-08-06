@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BadexTechEvents — Event Registration & Ticketing</title>
+  <meta name="description" content="BadexTechEvents serverless registration. List events, register, view tickets, and cancel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="BadexTechEvents home">
+        <span class="brand-main">Badex</span><span class="brand-accent">TechEvents</span>
+        <span class="brand-dot" aria-hidden="true"></span>
+      </a>
+      <nav class="nav-links" aria-label="Page sections">
+        <a href="#register">Register</a>
+        <a href="#events">Events</a>
+        <a href="#tickets">My tickets</a>
+        <a href="#cancel">Cancel</a>
+      </nav>
+    </header>
+
+    <section class="hero" id="top" aria-label="BadexTechEvents">
+      <div class="hero-copy">
+        <h1>Event registration, without the spreadsheet.</h1>
+        <p>A serverless ticketing desk for BadexTechEvents — register, review your seats, and cancel when plans change.</p>
+      </div>
+      <figure class="hero-visual">
+        <img
+          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1400&q=80"
+          alt="Audience in a bright conference hall"
+          width="1400"
+          height="900"
+        />
+        <figcaption class="hero-caption">Powered by API Gateway · Lambda · DynamoDB · SNS</figcaption>
+      </figure>
+    </section>
+
+    <!-- POST /register -->
+    <section class="panel panel-register" id="register" aria-labelledby="register-title">
+      <div class="panel-head">
+        <h2 id="register-title">Register</h2>
+        <span>POST /register</span>
+      </div>
+
+      <form id="registrationForm" class="form-grid" novalidate>
+        <div class="field">
+          <label for="eventId">Event ID</label>
+          <input id="eventId" name="eventId" type="text" autocomplete="off" placeholder="aws-workshop-accra-2026" required />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
+        </div>
+        <button class="btn btn-accent" id="submitBtn" type="submit">Confirm seat</button>
+      </form>
+
+      <div id="registerNotice" class="notice" role="status" aria-live="polite"></div>
+    </section>
+
+    <!-- GET /events -->
+    <section class="section" id="events" aria-labelledby="events-title">
+      <div class="section-head">
+        <h2 id="events-title">Available events</h2>
+        <p>GET /events · tap a row to fill the form</p>
+      </div>
+      <div id="eventsList" class="list" aria-live="polite">
+        <div class="state">Loading events…</div>
+      </div>
+    </section>
+
+    <div class="workspace" id="tickets">
+      <!-- GET /registrations/{email} -->
+      <section class="panel" aria-labelledby="lookup-title">
+        <div class="panel-head">
+          <h2 id="lookup-title">My tickets</h2>
+          <span>GET /registrations/{email}</span>
+        </div>
+
+        <form id="lookupForm" class="form-grid two-col" novalidate>
+          <div class="field">
+            <label for="lookupEmail">Email</label>
+            <input id="lookupEmail" name="lookupEmail" type="email" autocomplete="email" placeholder="you@company.com" required />
+          </div>
+          <button class="btn" id="lookupBtn" type="submit">Find tickets</button>
+        </form>
+
+        <div id="lookupNotice" class="notice" role="status" aria-live="polite"></div>
+        <div id="registrationsList" class="list" style="margin-top: 1rem;">
+          <div class="state">Enter an email to load registrations.</div>
+        </div>
+      </section>
+
+      <!-- DELETE /registration/{id} -->
+      <section class="panel" id="cancel" aria-labelledby="cancel-title">
+        <div class="panel-head">
+          <h2 id="cancel-title">Cancel ticket</h2>
+          <span>DELETE /registration/{id}</span>
+        </div>
+
+        <form id="cancelForm" class="form-grid two-col" novalidate>
+          <div class="field">
+            <label for="registrationId">Registration ID</label>
+            <input id="registrationId" name="registrationId" type="text" autocomplete="off" placeholder="uuid ticket id" required />
+          </div>
+          <button class="btn btn-ghost" id="cancelBtn" type="submit">Cancel ticket</button>
+        </form>
+
+        <div id="cancelNotice" class="notice" role="status" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <footer>
+      <span>BadexTechEvents · Event Registration & Ticketing System</span>
+      <span>Serverless API on AWS</span>
+    </footer>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

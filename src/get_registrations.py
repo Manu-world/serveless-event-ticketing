@@ -1,10 +1,17 @@
 import json
 import boto3
 import os
+from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ.get('TABLE_NAME'))
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return int(obj) if obj % 1 == 0 else float(obj)
+        return super().default(obj)
 
 def build_response(status_code, body):
     return {
@@ -14,7 +21,7 @@ def build_response(status_code, body):
             'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,DELETE',
             'Content-Type': 'application/json'
         },
-        'body': json.dumps(body)
+        'body': json.dumps(body, cls=DecimalEncoder)
     }
 
 def lambda_handler(event, context):
