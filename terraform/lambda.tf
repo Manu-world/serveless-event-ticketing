@@ -31,7 +31,6 @@ resource "aws_lambda_function" "api_handlers" {
   source_code_hash = data.archive_file.lambda_zips[each.key].output_base64sha256
   runtime          = "python3.12"
   timeout          = 15
-  reserved_concurrent_executions = 10
 
   tracing_config {
     mode = "Active"

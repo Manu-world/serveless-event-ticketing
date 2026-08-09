@@ -9,7 +9,7 @@ lint:
 deploy-frontend:
 	aws s3 sync frontend/ s3://event-ticketing-prod-frontend-ui-12345/ --delete
 	# Requires CLOUDFRONT_DIST_ID in env
-	aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DIST_ID --paths "/*"
+	aws cloudfront create-invalidation --distribution-id $$CLOUDFRONT_DIST_ID --paths "/*"
 
 tf-plan:
 	cd terraform && terraform plan
