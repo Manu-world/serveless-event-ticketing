@@ -131,12 +131,13 @@ locals {
   github_name  = split("/", var.github_repo)[1]
   prefix       = "${var.project_name}-${var.environment}"
 
-  # Dev branch OIDC subjects
+  # Jobs that declare `environment:` get an `environment:` subject rather than a
+  # `ref:` one, so both forms are trusted to cover workflows of either shape.
   github_oidc_subs = [
+    "repo:${var.github_repo}:environment:dev",
     "repo:${var.github_repo}:ref:refs/heads/dev",
-    "repo:${var.github_repo}:pull_request",
+    "repo:${local.github_owner}@${var.github_owner_id}/${local.github_name}@${var.github_repo_id}:environment:dev",
     "repo:${local.github_owner}@${var.github_owner_id}/${local.github_name}@${var.github_repo_id}:ref:refs/heads/dev",
-    "repo:${local.github_owner}@${var.github_owner_id}/${local.github_name}@${var.github_repo_id}:pull_request",
   ]
 
   common_tags = {
