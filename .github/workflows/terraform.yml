@@ -2,91 +2,105 @@ name: 'Terraform'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, dev]
     paths:
-      - 'terraform/**'
+      - 'infrastructure/**'
   pull_request:
     paths:
-      - 'terraform/**'
+      - 'infrastructure/**'
 
 permissions:
-  id-token: write # Required for OIDC
+  id-token: write
   contents: read
-  pull-requests: write # To comment on PRs
+  pull-requests: write
 
 jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
+    environment: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'prod' || 'dev' }}
     defaults:
       run:
-        working-directory: ./terraform
+        working-directory: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && './infrastructure/environments/prod' || './infrastructure/environments/dev' }}
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-        aws-region: us-east-1
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_TERRAFORM_ROLE_ARN }}
+          aws-region: us-east-1
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
 
-    - name: Terraform Format
-      id: fmt
-      run: terraform fmt -check
+      - name: Terraform Format
+        id: fmt
+        working-directory: .
+        run: terraform fmt -check -recursive infrastructure/
 
-    - name: Terraform Init
-      id: init
-      run: terraform init
+      - name: Terraform Init
+        id: init
+        run: terraform init -input=false
 
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
 
-    - name: Terraform Plan
-      id: plan
-      if: github.event_name == 'pull_request'
-      run: terraform plan -no-color -input=false
-      continue-on-error: true
+      - name: Terraform Plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        env:
+          TF_VAR_admin_api_key: ${{ secrets.TF_VAR_admin_api_key }}
+          TF_VAR_notification_email: ${{ secrets.TF_VAR_notification_email }}
+          TF_VAR_smtp_user: ${{ secrets.TF_VAR_smtp_user }}
+          TF_VAR_smtp_password: ${{ secrets.TF_VAR_smtp_password }}
+        run: terraform plan -no-color -input=false
+        continue-on-error: true
 
-    - name: Update Pull Request
-      uses: actions/github-script@v7
-      if: github.event_name == 'pull_request'
-      env:
-        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
 
-          <details><summary>Show Plan</summary>
+            <details><summary>Show Plan</summary>
 
-          \`\`\`\n
-          ${process.env.PLAN}
-          \`\`\`
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
 
-          </details>
+            </details>
 
-          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
 
-    - name: Terraform Plan Status
-      if: steps.plan.outcome == 'failure'
-      run: exit 1
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
 
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      - name: Terraform Apply
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        env:
+          TF_VAR_admin_api_key: ${{ secrets.TF_VAR_admin_api_key }}
+          TF_VAR_notification_email: ${{ secrets.TF_VAR_notification_email }}
+          TF_VAR_smtp_user: ${{ secrets.TF_VAR_smtp_user }}
+          TF_VAR_smtp_password: ${{ secrets.TF_VAR_smtp_password }}
+        run: terraform apply -auto-approve -input=false

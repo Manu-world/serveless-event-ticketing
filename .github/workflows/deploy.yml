@@ -11,7 +11,7 @@ on:
       - dev
 
 permissions:
-  id-token: write # Required for AWS OIDC connection
+  id-token: write
   contents: read
 
 concurrency:
@@ -23,68 +23,90 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: 'requirements-dev.txt'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-      
+
       - name: Lint with ruff
-        run: ruff check src/ tests/
-        
+        run: ruff check backend/ tests/
+
       - name: Test with pytest
-        run: pytest tests/ -v --cov=src --cov-report=term-missing
+        run: pytest tests/ -v -m "not integration" --cov=backend --cov-report=term-missing
 
   deploy-backend:
     needs: lint-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
+
+      - name: Set Environment variables
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "ENV_NAME=prod" >> "$GITHUB_ENV"
+          else
+            echo "ENV_NAME=dev" >> "$GITHUB_ENV"
+          fi
 
       - name: Package and Deploy Lambdas
         run: |
           mkdir -p dist
-          # Build a zip for each handler
+          cd backend
+          zip -r ../dist/backend.zip . -x "*__pycache__*"
+          cd ..
           for handler in register get_events get_registrations delete_registration create_event update_event delete_event authorizer; do
-            zip -j dist/${handler}.zip src/${handler}.py src/shared.py src/email_service.py
             aws lambda update-function-code \
-              --function-name event-ticketing-prod-${handler} \
-              --zip-file fileb://dist/${handler}.zip \
+              --function-name "event-ticketing-${ENV_NAME}-${handler}" \
+              --zip-file fileb://dist/backend.zip \
               --publish
           done
 
   deploy-frontend:
     needs: deploy-backend
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
-          
+
+      - name: Set Environment variables
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "ENV_NAME=prod" >> "$GITHUB_ENV"
+          else
+            echo "ENV_NAME=dev" >> "$GITHUB_ENV"
+          fi
+
       - name: Inject API URL and Sync to S3
         run: |
-          API_URL=${{ secrets.VUE_APP_API_URL }} 
+          API_URL="${{ secrets.API_BASE_URL }}"
           sed -i "s|__API_BASE_URL__|$API_URL|g" frontend/index.html
-          aws s3 sync frontend/ s3://event-ticketing-prod-frontend-ui-12345/ --delete
-          
+          aws s3 sync frontend/ "s3://event-ticketing-${ENV_NAME}-frontend-ui-12345/" --delete
+
       - name: Invalidate CloudFront
         run: |
-          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID }} --paths "/*"
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DIST_ID }}" \
+            --paths "/*"
