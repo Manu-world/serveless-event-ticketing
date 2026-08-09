@@ -1,8 +1,22 @@
 import os
-import boto3
-import pytest
-from moto import mock_aws
-import sys
+
+# ── Set env vars at module level BEFORE any handler imports ──
+# Lambda handlers initialise `dynamodb.Table(os.environ['TABLE_NAME'])` at
+# import time.  If TABLE_NAME is unset when pytest *collects* test files the
+# import chain crashes with "Required parameter name not set".  Setting the
+# vars here guarantees they exist before collection runs.
+os.environ.setdefault('TABLE_NAME', 'test-table')
+os.environ.setdefault('SNS_TOPIC_ARN', 'arn:aws:sns:us-east-1:123456789012:test-topic')
+os.environ.setdefault('EMAIL_PROVIDER', 'none')
+os.environ.setdefault('ADMIN_API_KEY_SSM_PARAM', '/test/admin-api-key')
+os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'testing')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
+
+import boto3  # noqa: E402
+import pytest  # noqa: E402
+from moto import mock_aws  # noqa: E402
+import sys  # noqa: E402
 
 # Ensure src is in path so handlers can import shared
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))

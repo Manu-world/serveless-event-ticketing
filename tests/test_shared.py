@@ -1,4 +1,3 @@
-import pytest
 from decimal import Decimal
 import json
 from shared import validate_email, validate_uuid, DecimalEncoder, build_response
