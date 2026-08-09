@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "frontend" {
-  bucket        = "${var.project_name}-frontend-ui-12345"
+  bucket        = "${local.prefix}-frontend-ui-12345"
   force_destroy = true
   tags          = local.common_tags
 }
@@ -13,7 +13,7 @@ resource "aws_s3_bucket_public_access_block" "frontend_block" {
 }
 
 resource "aws_cloudfront_origin_access_control" "oac" {
-  name                              = "${var.project_name}-oac"
+  name                              = "${local.prefix}-oac"
   description                       = "OAC for frontend S3 bucket"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"

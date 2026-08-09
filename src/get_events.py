@@ -1,42 +1,27 @@
-import json
 import boto3
 import os
-from decimal import Decimal
 from boto3.dynamodb.conditions import Key
+from shared import build_response, get_logger
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ.get('TABLE_NAME'))
 
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return int(obj) if obj % 1 == 0 else float(obj)
-        return super().default(obj)
-
-def build_response(status_code, body):
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,DELETE',
-            'Content-Type': 'application/json'
-        },
-        'body': json.dumps(body, cls=DecimalEncoder)
-    }
-
 def lambda_handler(event, context):
+    logger = get_logger(context)
+    logger.info("Fetching events")
+    
     try:
-        # Querying the table for all items where the SK is 'METADATA'
-        # Since we are using single-table design, this isolates the actual event details
-        # away from the registration items.
-        response = table.scan(
-            FilterExpression=Key('SK').eq('METADATA')
+        # Use SKIndex to avoid table scan
+        response = table.query(
+            IndexName='SKIndex',
+            KeyConditionExpression=Key('SK').eq('METADATA')
         )
         
         events = response.get('Items', [])
+        logger.info(f"Retrieved {len(events)} events")
         
         return build_response(200, {'events': events})
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error fetching events: {str(e)}", exc_info=True)
         return build_response(500, {'error': 'Internal server error'})

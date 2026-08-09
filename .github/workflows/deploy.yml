@@ -1,62 +1,89 @@
-name: Serverless API CI/CD
+name: Deploy Event Ticketing Backend & Frontend
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'pytest.ini'
-      - 'requirements-dev.txt'
-      - '.github/workflows/**'
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
 
 permissions:
-  id-token: write
+  id-token: write # Required for AWS OIDC connection
   contents: read
 
-env:
-  AWS_REGION: us-east-1
-  PROJECT_NAME: event-ticketing
-  PYTHONPATH: .
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test-and-deploy:
+  lint-and-test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-
-      - name: Install Dependencies
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+      
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+        
+      - name: Test with pytest
+        run: pytest tests/ -v --cov=src --cov-report=term-missing
 
-      - name: Run Unit Tests
-        run: pytest tests/ -q
-
-      - name: Configure AWS Credentials via OIDC
+  deploy-backend:
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::272558305025:role/${{ env.PROJECT_NAME }}-github-oidc-role
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
 
-      - name: Package and Deploy Lambda Updates
+      - name: Package and Deploy Lambdas
         run: |
-          set -euo pipefail
           mkdir -p dist
-          for function in register get_events get_registrations delete_registration; do
-            zip -j "dist/${function}.zip" "src/${function}.py"
+          # Build a zip for each handler
+          for handler in register get_events get_registrations delete_registration create_event update_event delete_event authorizer; do
+            zip -j dist/${handler}.zip src/${handler}.py src/shared.py src/email_service.py
             aws lambda update-function-code \
-              --function-name "${PROJECT_NAME}-${function}" \
-              --zip-file "fileb://dist/${function}.zip" \
+              --function-name event-ticketing-prod-${handler} \
+              --zip-file fileb://dist/${handler}.zip \
               --publish
           done
+
+  deploy-frontend:
+    needs: deploy-backend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Inject API URL and Sync to S3
+        run: |
+          API_URL=${{ secrets.VUE_APP_API_URL }} 
+          sed -i "s|__API_BASE_URL__|$API_URL|g" frontend/index.html
+          aws s3 sync frontend/ s3://event-ticketing-prod-frontend-ui-12345/ --delete
+          
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID }} --paths "/*"

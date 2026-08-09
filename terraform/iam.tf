@@ -7,7 +7,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 
 # 2. IAM Role for GitHub Actions
 resource "aws_iam_role" "github_actions_role" {
-  name = "${var.project_name}-github-oidc-role"
+  name = "${local.prefix}-github-oidc-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -27,7 +27,7 @@ resource "aws_iam_role" "github_actions_role" {
 
 # Allow GitHub Actions to publish updated Lambda code after tests pass
 resource "aws_iam_role_policy" "github_actions_lambda_deploy" {
-  name = "${var.project_name}-github-lambda-deploy"
+  name = "${local.prefix}-github-lambda-deploy"
   role = aws_iam_role.github_actions_role.id
 
   policy = jsonencode({
@@ -49,9 +49,24 @@ resource "aws_iam_role_policy" "github_actions_lambda_deploy" {
   })
 }
 
-# 3. Base IAM Role for Lambda Functions
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "${var.project_name}-lambda-role"
+# 3. Per-Function Lambda IAM Roles
+
+locals {
+  lambda_functions = [
+    "register",
+    "get_events",
+    "get_registrations",
+    "delete_registration",
+    "create_event",
+    "update_event",
+    "delete_event",
+    "authorizer"
+  ]
+}
+
+resource "aws_iam_role" "lambda_roles" {
+  for_each = toset(local.lambda_functions)
+  name     = "${local.prefix}-${each.key}-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -63,59 +78,158 @@ resource "aws_iam_role" "lambda_exec_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_exec_role.name
+  for_each   = aws_iam_role.lambda_roles
+  role       = each.value.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# X-Ray Tracing Permission for all lambdas
+resource "aws_iam_role_policy_attachment" "lambda_xray" {
+  for_each   = aws_iam_role.lambda_roles
+  role       = each.value.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
 
-resource "aws_iam_policy" "lambda_dynamodb_policy" {
-  name        = "${var.project_name}-dynamodb-access"
-  description = "Allows Lambda to access the event ticketing DynamoDB table"
-
+# Specific Policies for each function
+# register
+resource "aws_iam_role_policy" "register_policy" {
+  name = "${local.prefix}-register-policy"
+  role = aws_iam_role.lambda_roles["register"].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:Scan",
-          "dynamodb:Query",
-          "dynamodb:DeleteItem"
-        ]
-        Effect   = "Allow"
-        Resource = [
-          aws_dynamodb_table.event_ticketing_db.arn,
-          "${aws_dynamodb_table.event_ticketing_db.arn}/index/UserEmailIndex"
-        ]
+        Effect = "Allow"
+        Action = ["dynamodb:PutItem", "dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.event_ticketing_db.arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["sns:Publish"]
+        Resource = aws_sns_topic.admin_alerts.arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["ses:SendEmail"]
+        Resource = "*"
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_attach" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
-}
-
-
-resource "aws_iam_policy" "lambda_sns_policy" {
-  name        = "${var.project_name}-sns-publish"
-  description = "Allows Lambda to publish to the confirmation SNS topic"
-
+# get_events
+resource "aws_iam_role_policy" "get_events_policy" {
+  name = "${local.prefix}-get-events-policy"
+  role = aws_iam_role.lambda_roles["get_events"].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action   = "sns:Publish"
-        Effect   = "Allow"
-        Resource = aws_sns_topic.event_confirmations.arn
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
+        Resource = "${aws_dynamodb_table.event_ticketing_db.arn}/index/SKIndex"
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_sns_attach" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = aws_iam_policy.lambda_sns_policy.arn
+# get_registrations
+resource "aws_iam_role_policy" "get_registrations_policy" {
+  name = "${local.prefix}-get-registrations-policy"
+  role = aws_iam_role.lambda_roles["get_registrations"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
+        Resource = "${aws_dynamodb_table.event_ticketing_db.arn}/index/UserEmailIndex"
+      }
+    ]
+  })
+}
+
+# delete_registration
+resource "aws_iam_role_policy" "delete_registration_policy" {
+  name = "${local.prefix}-delete-registration-policy"
+  role = aws_iam_role.lambda_roles["delete_registration"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
+        Resource = "${aws_dynamodb_table.event_ticketing_db.arn}/index/RegistrationIdIndex"
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:DeleteItem"]
+        Resource = aws_dynamodb_table.event_ticketing_db.arn
+      }
+    ]
+  })
+}
+
+# create_event
+resource "aws_iam_role_policy" "create_event_policy" {
+  name = "${local.prefix}-create-event-policy"
+  role = aws_iam_role.lambda_roles["create_event"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.event_ticketing_db.arn
+      }
+    ]
+  })
+}
+
+# update_event
+resource "aws_iam_role_policy" "update_event_policy" {
+  name = "${local.prefix}-update-event-policy"
+  role = aws_iam_role.lambda_roles["update_event"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:UpdateItem", "dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.event_ticketing_db.arn
+      }
+    ]
+  })
+}
+
+# delete_event
+resource "aws_iam_role_policy" "delete_event_policy" {
+  name = "${local.prefix}-delete-event-policy"
+  role = aws_iam_role.lambda_roles["delete_event"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:Query"]
+        Resource = aws_dynamodb_table.event_ticketing_db.arn
+      }
+    ]
+  })
+}
+
+# authorizer
+resource "aws_iam_role_policy" "authorizer_policy" {
+  name = "${local.prefix}-authorizer-policy"
+  role = aws_iam_role.lambda_roles["authorizer"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = aws_ssm_parameter.admin_api_key.arn
+      }
+    ]
+  })
 }

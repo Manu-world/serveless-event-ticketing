@@ -1,5 +1,5 @@
 resource "aws_budgets_budget" "event_ticketing_cost" {
-  name              = "${var.project_name}-budget"
+  name              = "${local.prefix}-budget"
   budget_type       = "COST"
   limit_amount      = "1.00"
   limit_unit        = "USD"
@@ -11,6 +11,6 @@ resource "aws_budgets_budget" "event_ticketing_cost" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = ["manu.softwareengineer@gmail.com"] 
+    subscriber_email_addresses = [var.notification_email] 
   }
 }

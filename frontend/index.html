@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BadexTechEvents — Event Registration & Ticketing</title>
   <meta name="description" content="BadexTechEvents serverless registration. List events, register, view tickets, and cancel." />
+  <meta name="api-base-url" content="__API_BASE_URL__" />
+  <meta property="og:title" content="BadexTechEvents" />
+  <meta property="og:description" content="Serverless Event Ticketing on AWS" />
+  
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎟️</text></svg>">
 </head>
 <body>
   <div class="shell">
@@ -22,6 +27,7 @@
         <a href="#events">Events</a>
         <a href="#tickets">My tickets</a>
         <a href="#cancel">Cancel</a>
+        <a href="#admin" id="navAdminLink">Admin</a>
       </nav>
     </header>
 
@@ -70,7 +76,8 @@
         <p>GET /events · tap a row to fill the form</p>
       </div>
       <div id="eventsList" class="list" aria-live="polite">
-        <div class="state">Loading events…</div>
+        <div class="state skeleton-box" style="height: 80px;"></div>
+        <div class="state skeleton-box" style="height: 80px;"></div>
       </div>
     </section>
 
@@ -115,11 +122,69 @@
       </section>
     </div>
 
+    <!-- Admin Panel (Hidden by default) -->
+    <section class="panel admin-panel hidden" id="admin" aria-labelledby="admin-title">
+      <div class="panel-head">
+        <h2 id="admin-title">Admin Dashboard</h2>
+        <button id="adminLogoutBtn" class="btn btn-ghost">Logout</button>
+      </div>
+      
+      <div class="admin-workspace">
+        <div class="admin-form-col">
+          <h3>Create Event</h3>
+          <form id="adminEventForm" class="form-stacked" novalidate>
+            <div class="field">
+              <label for="adminEventId">Event ID</label>
+              <input id="adminEventId" name="eventId" type="text" required placeholder="aws-summit-2026"/>
+            </div>
+            <div class="field">
+              <label for="adminEventName">Event Name</label>
+              <input id="adminEventName" name="eventName" type="text" required placeholder="AWS Summit 2026"/>
+            </div>
+            <div class="field">
+              <label for="adminEventDate">Date</label>
+              <input id="adminEventDate" name="date" type="text" required placeholder="2026-09-15"/>
+            </div>
+            <div class="field">
+              <label for="adminEventVenue">Venue</label>
+              <input id="adminEventVenue" name="venue" type="text" placeholder="Virtual"/>
+            </div>
+            <button class="btn btn-accent" id="adminCreateBtn" type="submit">Publish Event</button>
+            <div id="adminNotice" class="notice" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+        
+        <div class="admin-list-col">
+          <h3>Manage Events</h3>
+          <div id="adminEventsList" class="list"></div>
+        </div>
+      </div>
+    </section>
+
     <footer>
       <span>BadexTechEvents · Event Registration & Ticketing System</span>
       <span>Serverless API on AWS</span>
     </footer>
   </div>
+
+  <!-- Admin Login Modal -->
+  <dialog id="adminLoginModal" class="modal">
+    <div class="modal-content">
+      <h2>Admin Access</h2>
+      <p>Enter the API key to access the admin dashboard.</p>
+      <form id="adminLoginForm" class="form-stacked">
+        <div class="field">
+          <label for="adminApiKey">API Key</label>
+          <input id="adminApiKey" name="apiKey" type="password" required />
+        </div>
+        <div style="display:flex; gap: 1rem; margin-top: 1rem;">
+          <button class="btn btn-accent" type="submit">Login</button>
+          <button class="btn btn-ghost" type="button" id="adminLoginCancel">Cancel</button>
+        </div>
+        <div id="adminLoginNotice" class="notice" role="status"></div>
+      </form>
+    </div>
+  </dialog>
 
   <script src="./app.js" defer></script>
 </body>

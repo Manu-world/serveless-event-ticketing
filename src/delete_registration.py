@@ -1,52 +1,51 @@
-import json
 import boto3
 import os
+from boto3.dynamodb.conditions import Key
+from shared import build_response, get_logger, validate_uuid
 
-# Using the client interface here for precise key mapping
-dynamodb = boto3.client('dynamodb')
+dynamodb = boto3.resource('dynamodb')
 table_name = os.environ.get('TABLE_NAME')
-
-def build_response(status_code, body):
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,DELETE',
-            'Content-Type': 'application/json'
-        },
-        'body': json.dumps(body)
-    }
+table = dynamodb.Table(table_name)
 
 def lambda_handler(event, context):
+    logger = get_logger(context)
+    
     try:
-        registration_id = event['pathParameters']['id']
+        registration_id = event.get('pathParameters', {}).get('id')
         
-        # 1. Find the Primary Key and Sort Key associated with this RegistrationId
-        response = dynamodb.scan(
-            TableName=table_name,
-            FilterExpression="RegistrationId = :rid",
-            ExpressionAttributeValues={":rid": {"S": registration_id}}
+        if not registration_id:
+            logger.warning("Registration ID path parameter is missing")
+            return build_response(400, {'error': 'Registration ID path parameter is missing'})
+            
+        if not validate_uuid(registration_id):
+            logger.warning(f"Invalid UUID format for registration id: {registration_id}")
+            return build_response(400, {'error': 'Invalid Registration ID format'})
+            
+        logger.info(f"Attempting to delete registration {registration_id}")
+        
+        # 1. Query the GSI to find PK/SK
+        response = table.query(
+            IndexName='RegistrationIdIndex',
+            KeyConditionExpression=Key('RegistrationId').eq(registration_id)
         )
         
         items = response.get('Items', [])
         if not items:
+            logger.info(f"Registration {registration_id} not found")
             return build_response(404, {'error': 'Registration not found'})
-        
-        # 2. Extract the exact keys
+            
         item_to_delete = items[0]
-        pk = item_to_delete['PK']['S']
-        sk = item_to_delete['SK']['S']
+        pk = item_to_delete['PK']
+        sk = item_to_delete['SK']
         
-        # 3. Execute the deletion
-        dynamodb.delete_item(
-            TableName=table_name,
-            Key={'PK': {'S': pk}, 'SK': {'S': sk}}
+        # 2. Execute the deletion using resource interface
+        table.delete_item(
+            Key={'PK': pk, 'SK': sk}
         )
         
+        logger.info(f"Successfully deleted registration {registration_id}")
         return build_response(200, {'message': f'Registration {registration_id} cancelled successfully'})
 
-    except KeyError:
-        return build_response(400, {'error': 'Registration ID path parameter is missing'})
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error deleting registration: {str(e)}", exc_info=True)
         return build_response(500, {'error': 'Internal server error'})
