@@ -1,15 +1,11 @@
 # Copy to terraform.tfvars and fill in secrets (gitignored).
+#
+# Secrets ONLY. terraform.tfvars is gitignored, so CI never reads it and
+# instead supplies these four via TF_VAR_* environment secrets. Putting
+# non-secret settings here makes local and CI applies disagree, and since
+# they share one state file they will revert each other on every run.
+# Non-secret configuration belongs in the variables.tf defaults.
 admin_api_key      = "change-me-admin-api-key"
 notification_email = "you@example.com"
 smtp_user          = "you@example.com"
 smtp_password      = "app-password-here"
-
-# Slim prod defaults are already set in variables.tf; override only if needed:
-# environment                  = "prod"
-# log_retention_days           = 30
-# enable_pitr                  = true
-# enable_detailed_alarms       = true
-# budget_limit_usd             = "5.00"
-# s3_force_destroy             = false
-# dynamodb_deletion_protection = true
-# email_provider               = "smtp"

@@ -47,4 +47,11 @@ resource "aws_lambda_function" "api_handlers" {
   }
 
   tags = var.common_tags
+
+  # Terraform seeds the function with the repo zip on create, but application
+  # code is owned by the deploy pipeline from then on. Without this, every
+  # apply would revert the deployed artifact and show permanent drift.
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 }

@@ -48,7 +48,7 @@ variable "notification_email" {
 variable "email_provider" {
   description = "Email provider to use (smtp, ses, none)"
   type        = string
-  default     = "smtp"
+  default     = "none"
 }
 
 variable "smtp_host" {
