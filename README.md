@@ -2,7 +2,43 @@
 
 ![CI](https://github.com/Manu-world/serveless-event-ticketing/actions/workflows/deploy.yml/badge.svg)
 
-A production-grade serverless event registration and ticketing system built on AWS. 
+A production-grade serverless event registration and ticketing system built on AWS.
+
+## Project Structure
+
+```text
+event-ticketing/
+├── .github/                      # CI/CD Workflows
+├── docs/                         # Project Documentation & Troubleshoots
+├── frontend/                     # Vanilla Frontend App
+│   ├── public/                   # Static assets
+│   ├── css/                      # Stylesheets
+│   ├── js/                       # Modularized JavaScript (api.js, ui.js, app.js)
+│   └── index.html
+├── backend/                      # Domain-driven Lambda services
+│   ├── services/
+│   │   ├── events/
+│   │   ├── registrations/
+│   │   └── auth/
+│   ├── shared/
+│   └── requirements.txt
+├── infrastructure/
+│   ├── bootstrap/                # Shared account resources (state bucket, OIDC)
+│   ├── environments/
+│   │   ├── dev/
+│   │   └── prod/
+│   └── modules/
+│       ├── api/
+│       ├── compute/
+│       ├── database/
+│       ├── frontend/
+│       └── messaging/
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── Makefile
+└── README.md
+```
 
 ## Architecture
 
@@ -48,12 +84,13 @@ graph TB
 ```
 
 ## Features
+
 - **Public Registration Flow**: Users can view events, register, look up their tickets, and cancel registrations.
 - **Admin Dashboard**: Full CRUD management of events, secured via API Keys (SSM).
-- **Automated Emails**: Strategy pattern supports SMTP (e.g. Gmail) out-of-the-box, easily swappable to AWS SES for production.
+- **Automated Emails**: Strategy pattern supports SMTP out-of-the-box, swappable to AWS SES. SMTP passwords are read from SSM at runtime (not stored in Lambda env vars).
 - **Single-Table Design**: Optimized DynamoDB schema with GSIs to eliminate full-table scans.
-- **Secure IaC**: Terraform with remote state (S3 backend) and DynamoDB state locking.
-- **OIDC CI/CD**: GitHub Actions pipeline for linting, testing (Moto), and automated deployment.
+- **Secure IaC**: Terraform with remote S3 state (`use_lockfile`) and a shared bootstrap stack for account-level resources.
+- **OIDC CI/CD**: GitHub Environments (`dev` / `prod`) with separate Terraform and deploy roles.
 
 ## Public API Reference
 
@@ -65,6 +102,7 @@ graph TB
 | `/registration/{id}` | DELETE | Cancel a ticket | - |
 
 ## Admin API Reference
+
 *Requires header: `x-api-key: <ADMIN_API_KEY>`*
 
 | Endpoint | Method | Description | Example Payload |
@@ -75,20 +113,69 @@ graph TB
 
 ## Deployment / Setup
 
-1. **Bootstrap Terraform State**
-   Create an S3 bucket (`event-ticketing-tfstate-12345`) and DynamoDB table (`terraform-state-lock`) in your AWS account manually first.
-   
-2. **Set up Secrets in GitHub**
-   Configure the following secrets in your GitHub repository:
-   - `AWS_OIDC_ROLE_ARN`: The ARN of the IAM role for GitHub Actions
-   - `TF_VAR_admin_api_key`: Your chosen secret key for the admin panel
-   - `TF_VAR_smtp_password`: Your SMTP App Password
-   - `VUE_APP_API_URL`: The output API endpoint from Terraform
-   - `CLOUDFRONT_DIST_ID`: The output CloudFront ID from Terraform
+### 1. Bootstrap (once per AWS account)
 
-3. **Deploy**
-   Pushing to `main` will automatically apply the Terraform state and deploy the updated Lambda code and frontend assets.
+```bash
+cd infrastructure/bootstrap
+terraform init
+terraform apply
+```
+
+This creates:
+
+- S3 state bucket `event-ticketing-tfstate-<account-id>`
+- Shared GitHub OIDC provider
+
+### 2. Configure environment tfvars
+
+```bash
+cp infrastructure/environments/dev/terraform.tfvars.example \
+   infrastructure/environments/dev/terraform.tfvars
+cp infrastructure/environments/prod/terraform.tfvars.example \
+   infrastructure/environments/prod/terraform.tfvars
+# edit secrets in both files (gitignored)
+```
+
+### 3. Apply environments
+
+Always bring up **dev** and verify it first:
+
+```bash
+make ENV=dev tf-apply
+# follow docs/Testing.md
+make ENV=prod tf-apply
+```
+
+### 4. GitHub Environments & Secrets
+
+Create GitHub Environments named `dev` and `prod`. In each environment set:
+
+| Secret | Purpose |
+| --- | --- |
+| `AWS_OIDC_DEPLOY_ROLE_ARN` | Role for Lambda/frontend deploys |
+| `AWS_OIDC_TERRAFORM_ROLE_ARN` | Role for Terraform plan/apply |
+| `API_BASE_URL` | API Gateway endpoint for frontend injection |
+| `CLOUDFRONT_DIST_ID` | CloudFront distribution for invalidation |
+| `TF_VAR_admin_api_key` | Terraform var |
+| `TF_VAR_notification_email` | Terraform var |
+| `TF_VAR_smtp_user` | Terraform var |
+| `TF_VAR_smtp_password` | Terraform var |
+
+Role ARNs come from Terraform outputs after apply.
+
+### 5. Branch → environment mapping
+
+| Branch | Environment |
+| --- | --- |
+| `dev` | GitHub Environment `dev` → `event-ticketing-dev-*` |
+| `main` | GitHub Environment `prod` → `event-ticketing-prod-*` |
 
 ## Local Development
-Run `make test` to execute the full pytest suite. We use `moto` to mock AWS services entirely in memory, meaning you can test everything locally without hitting real AWS endpoints.
-See `CONTRIBUTING.md` for our branching strategy.
+
+```bash
+pip install -r requirements-dev.txt
+make lint
+make test          # unit tests only
+```
+
+See [docs/Testing.md](docs/Testing.md) for the full verify-before-prod ladder, and `CONTRIBUTING.md` for branching.
