@@ -16,10 +16,6 @@ os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
 import boto3  # noqa: E402
 import pytest  # noqa: E402
 from moto import mock_aws  # noqa: E402
-import sys  # noqa: E402
-
-# Ensure src is in path so handlers can import shared
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 @pytest.fixture(scope='function')
 def aws_credentials():

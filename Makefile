@@ -1,24 +1,36 @@
-.PHONY: test lint deploy-frontend tf-plan tf-apply zip
+.PHONY: test lint test-unit test-integration tf-fmt tf-validate tf-plan tf-apply deploy-frontend zip
 
-test:
-	pytest tests/ -v --cov=src --cov-report=term-missing
+ENV ?= dev
+TF_DIR = infrastructure/environments/$(ENV)
+
+test: test-unit
+
+test-unit:
+	pytest tests/ -v -m "not integration" --cov=backend --cov-report=term-missing
+
+test-integration:
+	pytest tests/integration -v -m integration
 
 lint:
-	ruff check src/ tests/ --fix
+	ruff check backend/ tests/
 
-deploy-frontend:
-	aws s3 sync frontend/ s3://event-ticketing-prod-frontend-ui-12345/ --delete
-	# Requires CLOUDFRONT_DIST_ID in env
-	aws cloudfront create-invalidation --distribution-id $$CLOUDFRONT_DIST_ID --paths "/*"
+tf-fmt:
+	terraform fmt -recursive infrastructure/
+
+tf-validate:
+	cd $(TF_DIR) && terraform validate
 
 tf-plan:
-	cd terraform && terraform plan
+	cd $(TF_DIR) && terraform plan
 
 tf-apply:
-	cd terraform && terraform apply
+	cd $(TF_DIR) && terraform apply
+
+deploy-frontend:
+	@test -n "$(CLOUDFRONT_DIST_ID)" || (echo "CLOUDFRONT_DIST_ID is required" && exit 1)
+	aws s3 sync frontend/ s3://event-ticketing-$(ENV)-frontend-ui-12345/ --delete
+	aws cloudfront create-invalidation --distribution-id $(CLOUDFRONT_DIST_ID) --paths "/*"
 
 zip:
 	mkdir -p dist
-	for handler in register get_events get_registrations delete_registration create_event update_event delete_event authorizer; do \
-		zip -j dist/$$handler.zip src/$$handler.py src/shared.py src/email_service.py; \
-	done
+	cd backend && zip -r ../dist/backend.zip . -x "*__pycache__*"
