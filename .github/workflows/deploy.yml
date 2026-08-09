@@ -14,9 +14,11 @@ permissions:
   id-token: write
   contents: read
 
+# Shared with the Terraform workflow: both mutate Lambda code, and AWS rejects
+# concurrent UpdateFunctionCode calls on the same function with a 409.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: aws-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   lint-and-test:
