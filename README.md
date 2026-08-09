@@ -9,6 +9,7 @@ A production-grade serverless event registration and ticketing system built on A
 ```text
 event-ticketing/
 ├── .github/                      # CI/CD Workflows
+├── .githooks/                    # Local git hooks (strip unwanted commit trailers)
 ├── docs/                         # Project Documentation & Troubleshoots
 ├── frontend/                     # Vanilla Frontend App
 │   ├── public/                   # Static assets
@@ -171,6 +172,14 @@ Role ARNs come from Terraform outputs after apply.
 | `main` | GitHub Environment `prod` → `event-ticketing-prod-*` |
 
 ## Local Development
+
+After cloning, point git at the repo's shared hooks (this setting is local and does not travel with the clone):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hooks strip any `Co-authored-by: Cursor` / `Made-with: Cursor` trailers that agents may inject into commit messages.
 
 ```bash
 pip install -r requirements-dev.txt

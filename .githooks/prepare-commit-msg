@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Same strip as commit-msg, applied earlier in the commit pipeline.
+set -euo pipefail
+msg_file="$1"
+tmp="$(mktemp)"
+sed -E \
+  -e '/^[[:space:]]*Co-authored-by:[[:space:]]*Cursor[[:space:]]*<cursoragent@cursor\.com>[[:space:]]*$/Id' \
+  -e '/^[[:space:]]*Made-with:[[:space:]]*Cursor[[:space:]]*$/Id' \
+  -e '/cursoragent@cursor\.com/Id' \
+  "$msg_file" | awk '
+    NF { pending = pending $0 ORS; printf "%s", pending; pending = ""; next }
+    { pending = pending ORS }
+  ' > "$tmp"
+mv "$tmp" "$msg_file"

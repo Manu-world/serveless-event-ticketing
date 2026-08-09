@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Strip Cursor attribution trailers that agents may inject into commit messages.
+set -euo pipefail
+msg_file="$1"
+tmp="$(mktemp)"
+# Drop Co-authored-by / Made-with lines that credit Cursor, then squeeze trailing blank lines.
+sed -E \
+  -e '/^[[:space:]]*Co-authored-by:[[:space:]]*Cursor[[:space:]]*<cursoragent@cursor\.com>[[:space:]]*$/Id' \
+  -e '/^[[:space:]]*Made-with:[[:space:]]*Cursor[[:space:]]*$/Id' \
+  -e '/cursoragent@cursor\.com/Id' \
+  "$msg_file" | awk '
+    NF { pending = pending $0 ORS; printf "%s", pending; pending = ""; next }
+    { pending = pending ORS }
+  ' > "$tmp"
+mv "$tmp" "$msg_file"
