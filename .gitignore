@@ -272,6 +272,7 @@ id_ed25519.*
 .DS_Store
 Thumbs.db
 .idea/
+.cursor/
 *.swp
 *.swo
 *~

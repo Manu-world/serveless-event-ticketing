@@ -21,7 +21,8 @@ module "frontend" {
 }
 
 module "compute" {
-  source                      = "../../modules/compute"
+  source = "../../modules/compute"
+
   prefix                      = local.prefix
   environment                 = var.environment
   common_tags                 = local.common_tags
