@@ -31,7 +31,7 @@ variable "github_owner_id" {
 variable "github_repo_id" {
   description = "Numeric GitHub repository ID used in OIDC sub claims"
   type        = string
-  default     = "1325358812"
+  default     = "1329279526"
 }
 
 variable "admin_api_key" {
