@@ -29,7 +29,7 @@ variable "github_owner_id" {
 }
 
 variable "github_repo_id" {
-  description = "Numeric GitHub repository ID used in OIDC sub claims"
+  description = "Numeric GitHub repository ID used in OIDC sub claims (updated after repo recreate)"
   type        = string
   default     = "1329279526"
 }
