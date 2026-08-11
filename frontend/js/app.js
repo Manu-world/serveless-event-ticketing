@@ -7,6 +7,7 @@ const {
   cancelRegistration,
   createEvent,
   deleteEventById,
+  verifyAdminApiKey,
 } = window.EventTicketingApi;
 
 const els = {
@@ -191,9 +192,23 @@ els.cancelForm.addEventListener("submit", async (event) => {
   }
 });
 
+function isAdminHash() {
+  return (location.hash || "").replace(/^#/, "").split("?")[0] === "admin";
+}
+
+function openAdminLogin() {
+  if (!els.adminLoginModal.open) {
+    hideNotice(els.adminLoginNotice);
+    els.adminLoginModal.showModal();
+  }
+}
+
 function showAdminPanel() {
   els.adminPanel.classList.remove("hidden");
   els.navAdminLink.textContent = "Admin Area";
+  if (!isAdminHash()) {
+    history.replaceState(null, "", "#admin");
+  }
   fetchEvents();
 }
 
@@ -202,24 +217,51 @@ function hideAdminPanel() {
   els.navAdminLink.textContent = "Admin";
   currentApiKey = null;
   sessionStorage.removeItem("adminApiKey");
+  if (isAdminHash()) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+}
+
+function handleAdminRoute() {
+  if (currentApiKey) {
+    showAdminPanel();
+    els.adminPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  openAdminLogin();
 }
 
 if (currentApiKey) {
   showAdminPanel();
 }
 
+if (isAdminHash()) {
+  handleAdminRoute();
+}
+
 els.navAdminLink.addEventListener("click", (e) => {
   e.preventDefault();
-  if (currentApiKey) {
-    document.getElementById("admin").scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    els.adminLoginModal.showModal();
-  }
+  handleAdminRoute();
+});
+
+const footerAdminLink = document.getElementById("footerAdminLink");
+if (footerAdminLink) {
+  footerAdminLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleAdminRoute();
+  });
+}
+
+window.addEventListener("hashchange", () => {
+  if (isAdminHash()) handleAdminRoute();
 });
 
 els.adminLoginCancel.addEventListener("click", () => {
   els.adminLoginModal.close();
   hideNotice(els.adminLoginNotice);
+  if (isAdminHash() && !currentApiKey) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 });
 
 els.adminLogoutBtn.addEventListener("click", () => {
@@ -232,17 +274,38 @@ els.adminLoginForm.addEventListener("submit", async (e) => {
   hideNotice(els.adminLoginNotice);
 
   const key = els.adminApiKey.value.trim();
+  if (!key) {
+    showNotice(els.adminLoginNotice, "API key is required.", "err");
+    return;
+  }
+
   const btn = els.adminLoginForm.querySelector("button[type=submit]");
   btn.disabled = true;
+  btn.textContent = "Checking…";
 
-  currentApiKey = key;
-  sessionStorage.setItem("adminApiKey", currentApiKey);
+  try {
+    const ok = await verifyAdminApiKey(key);
+    if (!ok) {
+      showNotice(els.adminLoginNotice, "Invalid API key.", "err");
+      return;
+    }
 
-  els.adminLoginForm.reset();
-  els.adminLoginModal.close();
-  btn.disabled = false;
-  showAdminPanel();
-  document.getElementById("admin").scrollIntoView({ behavior: "smooth", block: "start" });
+    currentApiKey = key;
+    sessionStorage.setItem("adminApiKey", currentApiKey);
+    els.adminLoginForm.reset();
+    els.adminLoginModal.close();
+    showAdminPanel();
+    els.adminPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    showNotice(
+      els.adminLoginNotice,
+      err.message || "Could not reach the API. Try again.",
+      "err"
+    );
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Login";
+  }
 });
 
 els.adminEventForm.addEventListener("submit", async (e) => {

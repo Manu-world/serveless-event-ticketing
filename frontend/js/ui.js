@@ -1,3 +1,4 @@
+(function () {
 function showNotice(node, message, type) {
   node.textContent = message;
   node.className = `notice show ${type}`;
@@ -150,3 +151,4 @@ window.EventTicketingUI = {
   renderRegistrations,
   renderAdminEvents,
 };
+})();
