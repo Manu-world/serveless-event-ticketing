@@ -7,6 +7,9 @@ A serverless Event Registration & Ticketing System on AWS — a scalable REST AP
 
 **Live UI (prod):** [https://d3eayustnpc41q.cloudfront.net](https://d3eayustnpc41q.cloudfront.net)
 
+
+![Application UI](./screenshot.png)
+
 ---
 
 ## Objectives
