@@ -1,3 +1,4 @@
+(function () {
 function getApiBaseUrl() {
   const meta = document.querySelector('meta[name="api-base-url"]');
   const url = meta ? meta.getAttribute("content") : "";
@@ -70,6 +71,21 @@ async function createEvent(payload, apiKey) {
   return { response, data };
 }
 
+/** Probe the authorizer without creating an event (empty body → 400 if authorized). */
+async function verifyAdminApiKey(apiKey) {
+  const response = await fetchWithRetry(`${API_BASE_URL}/admin/events`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: "{}",
+  });
+  if (response.status === 401 || response.status === 403) return false;
+  // 400 = authorized but invalid payload; anything else non-auth is treated as ok.
+  return true;
+}
+
 async function deleteEventById(eventId, apiKey) {
   const response = await fetchWithRetry(
     `${API_BASE_URL}/admin/events/${encodeURIComponent(eventId)}`,
@@ -90,4 +106,6 @@ window.EventTicketingApi = {
   cancelRegistration,
   createEvent,
   deleteEventById,
+  verifyAdminApiKey,
 };
+})();

@@ -28,7 +28,12 @@ tf-apply:
 
 deploy-frontend:
 	@test -n "$(CLOUDFRONT_DIST_ID)" || (echo "CLOUDFRONT_DIST_ID is required" && exit 1)
-	aws s3 sync frontend/ s3://event-ticketing-$(ENV)-frontend-ui-12345/ --delete
+	@test -n "$(API_BASE_URL)" || (echo "API_BASE_URL is required" && exit 1)
+	@tmpdir=$$(mktemp -d) && \
+	  cp -a frontend/. "$$tmpdir/" && \
+	  sed -i "s|__API_BASE_URL__|$(API_BASE_URL)|g" "$$tmpdir/index.html" && \
+	  aws s3 sync "$$tmpdir/" s3://event-ticketing-$(ENV)-frontend-ui-12345/ --delete && \
+	  rm -rf "$$tmpdir"
 	aws cloudfront create-invalidation --distribution-id $(CLOUDFRONT_DIST_ID) --paths "/*"
 
 zip:
